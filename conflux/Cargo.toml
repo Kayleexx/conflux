@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+base64-bytes = "0.1.0"
 dashmap = "6.1.0"
+serde = "1.0.228"
+serde_json = "1.0.145"
 thiserror = "2.0.17"
 tokio = "1.48.0"
 tracing = "0.1.41"
