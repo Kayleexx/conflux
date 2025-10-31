@@ -16,6 +16,10 @@ impl CrdtEngine {
         }
     }
 
+    pub fn doc(&self) -> Arc<RwLock<Doc>> {
+        self.doc.clone()
+    }
+
     pub fn apply_update(&self, update: &[u8]) {
         let doc = self.doc.read().unwrap();
         let mut txn = doc.transact_mut();
