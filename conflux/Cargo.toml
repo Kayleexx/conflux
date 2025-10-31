@@ -9,6 +9,6 @@ dashmap = "6.1.0"
 serde = "1.0.228"
 serde_json = "1.0.145"
 thiserror = "2.0.17"
-tokio = "1.48.0"
+tokio = { version = "1", features = ["full"] }
 tracing = "0.1.41"
 yrs = "0.24.0"
