@@ -84,6 +84,7 @@ name = "conflux"
 version = "0.1.0"
 dependencies = [
  "base64-bytes",
+ "bytes",
  "dashmap",
  "serde",
  "serde_json",
