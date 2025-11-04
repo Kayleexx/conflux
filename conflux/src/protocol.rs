@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use yrs::sync::Awareness;
 use std::{collections::HashMap, hash::Hash};
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
