@@ -37,8 +37,7 @@ async fn ws_handler(
 async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) {
     let client_id = Uuid::new_v4().to_string();
     info!("🟢 Client {} connecting to {}", client_id, document_id);
-
-    // Get or spawn the room
+    
     let mut rooms = state.rooms.lock().await;
     let room_handle = rooms
         .entry(document_id.clone())
@@ -46,10 +45,8 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
         .clone();
     drop(rooms);
 
-    // Bounded channel to communicate outbound messages from the room to this socket
     let (tx, mut rx) = mpsc::channel::<OutboundMessage>(32);
 
-    // Join the room
     room_handle
         .command_tx
         .send(RoomCommand::Join {
@@ -59,10 +56,8 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
         .await
         .unwrap();
 
-    // 🔹 Split the WebSocket into sender and receiver
     let (mut sender, mut receiver) = socket.split();
 
-    // Task: read from WebSocket → forward to room
     let reader_tx = room_handle.command_tx.clone();
     let reader_cid = client_id.clone();
     let reader = tokio::spawn(async move {
@@ -91,7 +86,6 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
             .await;
     });
 
-    // Task: write room updates → WebSocket
     let writer = tokio::spawn(async move {
         while let Some(out_msg) = rx.recv().await {
             if let Ok(json) = serde_json::to_string(&out_msg) {
