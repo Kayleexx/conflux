@@ -37,8 +37,7 @@ async fn ws_handler(
 async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) {
     let client_id = Uuid::new_v4().to_string();
     info!("🟢 Client {} connecting to {}", client_id, document_id);
-
-    // Get or spawn the room
+    
     let mut rooms = state.rooms.lock().await;
     let room_handle = rooms
         .entry(document_id.clone())
