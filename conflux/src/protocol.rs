@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-
 pub enum Message {
     ClientHello(ClientHello),
     JoinDocument(JoinDocument),
@@ -30,7 +29,6 @@ pub struct ClientHello {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_info: Option<UserInfo>,
-
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,8 +47,7 @@ pub struct ServerHello {
     pub supported_features: Vec<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub assigned_client_id: Option<String>
-    
+    pub assigned_client_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -62,7 +59,6 @@ pub struct JoinDocument {
 
     #[serde(default)]
     pub read_only: bool,
-
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,13 +85,12 @@ pub struct DocumentLeft {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SyncRequest {
     pub document_id: String,
-    
-    #[serde(with= "base64_bytes")]
+
+    #[serde(with = "base64_bytes")]
     pub state_vector: Vec<u8>,
 }
 
@@ -110,24 +105,21 @@ pub struct SyncResponse {
 pub struct Update {
     pub document_id: String,
 
-    #[serde(with= "base64_bytes")]
+    #[serde(with = "base64_bytes")]
     pub update: Vec<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
-
-
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AwarenessUpdate {
     pub document_id: String,
 
-    #[serde(with= "base64_bytes")]
+    #[serde(with = "base64_bytes")]
     pub awareness_update: Vec<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
-
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -138,14 +130,12 @@ pub struct Ping {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pong {
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ErrorMessage {
-
     pub code: ErrorCode,
     pub message: String,
     pub recoverable: bool,
@@ -153,7 +143,6 @@ pub struct ErrorMessage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<HashMap<String, String>>,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -165,4 +154,3 @@ pub enum ErrorCode {
     RateLimited,
     InternalError,
 }
-

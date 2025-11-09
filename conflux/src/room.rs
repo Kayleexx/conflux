@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use std::{
     collections::HashMap,
     sync::{
@@ -7,7 +8,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use bytes::Bytes;
 use tokio::{
     runtime::Builder,
     sync::{mpsc, oneshot},
@@ -97,14 +97,8 @@ pub enum RoomCommand {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum OutboundMessage {
-    Update {
-        document_id: String,
-        update: Bytes,
-    },
-    Awareness {
-        document_id: String,
-        update: Bytes,
-    },
+    Update { document_id: String, update: Bytes },
+    Awareness { document_id: String, update: Bytes },
     System(String),
 }
 
@@ -156,7 +150,14 @@ pub fn spawn_room(document_id: String, idle_timeout: Duration) -> RoomHandle {
 
     exec.try_send(Box::new(move || {
         spawn_local(async move {
-            room_actor(doc_id_clone, command_rx, room_clone, shutdown_rx, idle_timeout).await;
+            room_actor(
+                doc_id_clone,
+                command_rx,
+                room_clone,
+                shutdown_rx,
+                idle_timeout,
+            )
+            .await;
             let _ = done_tx.send(());
         });
     }))
@@ -222,7 +223,6 @@ async fn room_actor(
     println!("[Room {}] Actor shutdown complete", document_id);
 }
 
-
 async fn handle_command(
     command: RoomCommand,
     clients: &mut HashMap<String, mpsc::Sender<OutboundMessage>>,
@@ -240,7 +240,9 @@ async fn handle_command(
             *next_awareness_id += 1;
             awareness_ids.insert(client_id.clone(), awareness_id);
             clients.insert(client_id, tx);
-            room_meta.client_count.store(clients.len(), Ordering::Relaxed);
+            room_meta
+                .client_count
+                .store(clients.len(), Ordering::Relaxed);
         }
 
         RoomCommand::Leave { client_id } => {
@@ -250,27 +252,43 @@ async fn handle_command(
                 if let Ok(update) = awareness.update() {
                     let update_bytes = Bytes::from(update.encode_v1());
                     broadcast_to_clients(
-                        clients, &client_id,
-                        OutboundMessage::Awareness { document_id: document_id.to_string(), update: update_bytes },
+                        clients,
+                        &client_id,
+                        OutboundMessage::Awareness {
+                            document_id: document_id.to_string(),
+                            update: update_bytes,
+                        },
                         room_meta,
-                    ).await;
+                    )
+                    .await;
                 }
             }
             clients.remove(&client_id);
-            room_meta.client_count.store(clients.len(), Ordering::Relaxed);
+            room_meta
+                .client_count
+                .store(clients.len(), Ordering::Relaxed);
         }
 
         RoomCommand::ApplyUpdate { client_id, update } => {
             room_meta.updates_received.fetch_add(1, Ordering::Relaxed);
             crdt.apply_update(&update);
             broadcast_to_clients(
-                clients, &client_id,
-                OutboundMessage::Update { document_id: document_id.to_string(), update },
+                clients,
+                &client_id,
+                OutboundMessage::Update {
+                    document_id: document_id.to_string(),
+                    update,
+                },
                 room_meta,
-            ).await;
+            )
+            .await;
         }
 
-        RoomCommand::RequestSync { client_id, state_vector, reply_to } => {
+        RoomCommand::RequestSync {
+            client_id,
+            state_vector,
+            reply_to,
+        } => {
             println!("[Room {}] Sync request from {}", document_id, client_id);
             let diff = crdt.encode_diff(&state_vector);
             let _ = reply_to.send(Bytes::from(diff));
@@ -283,10 +301,15 @@ async fn handle_command(
                 if let Ok(update) = awareness.update() {
                     let update_bytes = Bytes::from(update.encode_v1());
                     broadcast_to_clients(
-                        clients, &client_id,
-                        OutboundMessage::Awareness { document_id: document_id.to_string(), update: update_bytes },
+                        clients,
+                        &client_id,
+                        OutboundMessage::Awareness {
+                            document_id: document_id.to_string(),
+                            update: update_bytes,
+                        },
                         room_meta,
-                    ).await;
+                    )
+                    .await;
                 }
             }
         }
@@ -315,7 +338,9 @@ async fn broadcast_to_clients(
             Err(mpsc::error::TrySendError::Full(_)) => {
                 eprintln!("Client {} is too slow, removing", cid);
                 failed.push(cid.clone());
-                room_meta.clients_removed_for_slow.fetch_add(1, Ordering::Relaxed);
+                room_meta
+                    .clients_removed_for_slow
+                    .fetch_add(1, Ordering::Relaxed);
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
                 println!("Client {} disconnected", cid);
@@ -326,6 +351,8 @@ async fn broadcast_to_clients(
 
     for cid in failed {
         clients.remove(&cid);
-        room_meta.client_count.store(clients.len(), Ordering::Relaxed);
+        room_meta
+            .client_count
+            .store(clients.len(), Ordering::Relaxed);
     }
 }
