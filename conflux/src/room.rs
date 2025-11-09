@@ -92,14 +92,29 @@ pub enum RoomCommand {
         client_id: String,
         state: serde_json::Value,
     },
+    Chat {
+        client_id: String,
+        message: String,
+    },
     Shutdown,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum OutboundMessage {
-    Update { document_id: String, update: Bytes },
-    Awareness { document_id: String, update: Bytes },
+    Update {
+        document_id: String,
+        update: Bytes,
+    },
+    Awareness {
+        document_id: String,
+        update: Bytes,
+    },
     System(String),
+    Chat {
+        document_id: String,
+        from: String,
+        message: String,
+    },
 }
 
 pub struct RoomHandle {
@@ -312,6 +327,25 @@ async fn handle_command(
                     .await;
                 }
             }
+        }
+
+        RoomCommand::Chat { client_id, message } => {
+            println!(
+                "[Room {}] Chat from {}: {}",
+                document_id, client_id, message
+            );
+            let from_id = client_id.clone();
+            broadcast_to_clients(
+                clients,
+                &client_id,
+                OutboundMessage::Chat {
+                    document_id: document_id.to_string(),
+                    from: from_id,
+                    message,
+                },
+                room_meta,
+            )
+            .await;
         }
 
         RoomCommand::Shutdown => {

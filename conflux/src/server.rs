@@ -42,7 +42,6 @@ async fn ws_handler(
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, document_id, state))
 }
-
 async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppState) {
     let client_id = Uuid::new_v4().to_string();
     info!("🟢 Client {} connecting to {}", client_id, document_id);
@@ -55,7 +54,6 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
     drop(rooms);
 
     let (tx, mut rx) = mpsc::channel::<OutboundMessage>(32);
-
     room_handle
         .command_tx
         .send(RoomCommand::Join {
@@ -67,7 +65,6 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
 
     loop {
         tokio::select! {
-
             maybe_msg = socket.recv() => {
                 match maybe_msg {
                     Some(Ok(Message::Binary(bin))) => {
@@ -119,7 +116,11 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                                 }
                             }
                             Ok(ClientMessage::Chat { message }) => {
-                                info!("Chat from {}: {}", client_id, message);
+                                info!(" Chat from {}: {}", client_id, message);
+                                let _ = room_handle.command_tx.send(RoomCommand::Chat {
+                                    client_id: client_id.clone(),
+                                    message,
+                                }).await;
                             }
                             Err(e) => {
                                 warn!("Invalid JSON from {}: {:?}", client_id, e);
@@ -129,7 +130,9 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                     Some(Ok(Message::Close(_))) => {
                         break;
                     }
-                    Some(Ok(_other)) => { /* ignore Ping/Pong, etc. */ }
+                    Some(Ok(_other)) => {
+                        // Ignore ping/pong, etc.
+                    }
                     Some(Err(e)) => {
                         warn!("WebSocket error for {}: {:?}", client_id, e);
                         break;
@@ -141,6 +144,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                 }
             }
 
+            // Outbound from room -> WebSocket
             maybe_out = rx.recv() => {
                 match maybe_out {
                     Some(out_msg) => {
