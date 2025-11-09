@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use crate::room::{spawn_room, OutboundMessage, RoomCommand, RoomHandle};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -8,12 +8,12 @@ use axum::{
     routing::get,
     Router,
 };
-use futures_util::{StreamExt, SinkExt};
+use bytes::Bytes;
+use futures_util::{SinkExt, StreamExt};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, Mutex};
 use tracing::info;
 use uuid::Uuid;
-use bytes::Bytes;
-use crate::room::{spawn_room, RoomCommand, RoomHandle, OutboundMessage};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -46,10 +46,8 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
         .clone();
     drop(rooms);
 
-    // Bounded channel to communicate outbound messages from the room to this socket
     let (tx, mut rx) = mpsc::channel::<OutboundMessage>(32);
 
-    // Join the room
     room_handle
         .command_tx
         .send(RoomCommand::Join {
@@ -59,10 +57,8 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
         .await
         .unwrap();
 
-    // 🔹 Split the WebSocket into sender and receiver
     let (mut sender, mut receiver) = socket.split();
 
-    // Task: read from WebSocket → forward to room
     let reader_tx = room_handle.command_tx.clone();
     let reader_cid = client_id.clone();
     let reader = tokio::spawn(async move {
@@ -79,6 +75,12 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
                 }
                 Message::Text(text) => {
                     info!("💬 Client {} sent text: {}", reader_cid, text);
+                    let _ = reader_tx
+                        .send(RoomCommand::ApplyUpdate {
+                            client_id: reader_cid.clone(),
+                            update: Bytes::from(text.clone()),
+                        })
+                        .await;
                 }
                 Message::Close(_) => break,
                 _ => {}
@@ -91,7 +93,6 @@ async fn handle_socket(socket: WebSocket, document_id: String, state: AppState) 
             .await;
     });
 
-    // Task: write room updates → WebSocket
     let writer = tokio::spawn(async move {
         while let Some(out_msg) = rx.recv().await {
             if let Ok(json) = serde_json::to_string(&out_msg) {
