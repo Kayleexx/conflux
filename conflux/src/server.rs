@@ -16,6 +16,7 @@ use tokio::sync::mpsc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+
 #[derive(Clone)]
 pub struct AppState {
     pub room_manager: Arc<RoomManager>,
@@ -74,7 +75,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                         info!(" Client {} sent text: {}", client_id, text);
                             if text.trim().is_empty() {
                                 continue; }
-                                
+
                         match serde_json::from_str::<ClientMessage>(&text) {
                             Ok(ClientMessage::Update { data }) => {
                                 match base64::decode(&data) {
