@@ -110,6 +110,7 @@ Example messages:
 
 ## Future Enhancements
 
+* Proper error handling
 * Persistent CRDT snapshots
 * Authenticated sessions
 * Prometheus metrics endpoint
