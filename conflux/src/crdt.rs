@@ -24,7 +24,7 @@ impl CrdtEngine {
         let doc = self.doc.read().unwrap();
         let mut txn = doc.transact_mut();
         if let Ok(update) = Update::decode_v1(update) {
-            txn.apply_update(update);
+            let _ = txn.apply_update(update);
         }
     }
 

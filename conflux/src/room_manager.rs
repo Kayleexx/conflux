@@ -34,6 +34,7 @@ impl RoomManager {
         }
 
         let handle = spawn_room(document_id.to_string(), self.idle_timeout);
+        println!("[RoomManager] Created new room '{}'", document_id);
         let handle = Arc::new(handle);
         guard.insert(
             document_id.to_string(),
