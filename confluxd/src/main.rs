@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 use axum::{Router, serve};
 use tokio::net::TcpListener;
 use tracing::info;
-
+use tower_http::services::ServeDir;
 use conflux::server::{create_router, AppState};
 use conflux::room_manager::RoomManager;
 
@@ -27,7 +27,7 @@ async fn main() {
         room_manager: Arc::clone(&room_manager),
     };
 
-    let app: Router = create_router(state);
+    let app: Router = create_router(state).nest_service("/", ServeDir::new("fro"));
     let addr = "127.0.0.1:8080";
     let listener = TcpListener::bind(addr).await.unwrap();
 
