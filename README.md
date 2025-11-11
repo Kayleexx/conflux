@@ -25,7 +25,6 @@ This project serves as a backend foundation for live collaborative applications 
 
 ## Architecture
 
-```
 
 ```
             ┌──────────────────────────────────────┐
@@ -50,9 +49,6 @@ This project serves as a backend foundation for live collaborative applications 
             │      Handles updates and merges      │
             └──────────────────────────────────────┘
 ```
-
-
----
 
 ## Project Structure
 
