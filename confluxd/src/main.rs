@@ -1,13 +1,12 @@
 use std::{sync::Arc, time::Duration};
 use axum::{Router, serve};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, task::LocalSet};
 use tracing::info;
-use tower_http::services::ServeDir;
 use conflux::server::{create_router, AppState};
 use conflux::room_manager::RoomManager;
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
 
     tracing_subscriber::fmt::init();
     
@@ -27,11 +26,12 @@ async fn main() {
         room_manager: Arc::clone(&room_manager),
     };
 
-    let app: Router = create_router(state).nest_service("/", ServeDir::new("fro"));
+    let app: Router = create_router(state);
     let addr = "127.0.0.1:8080";
     let listener = TcpListener::bind(addr).await.unwrap();
 
     info!(" Conflux server running at ws://{}", addr);
 
     serve(listener, app.into_make_service()).await.unwrap();
+    Ok(())
 }

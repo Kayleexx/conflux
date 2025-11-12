@@ -2,18 +2,27 @@ use crate::room::{spawn_room, RoomHandle};
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tokio::sync::Mutex;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
 
 struct Entry {
     handle: Arc<RoomHandle>,
-    last_used: Instant,
+    last_used: DateTime<Utc>,
 }
 
 pub struct RoomManager {
     rooms: Arc<Mutex<HashMap<String, Entry>>>,
     idle_timeout: Duration,
+}
+
+#[derive(Serialize, Clone)]
+pub struct RoomInfo {
+    pub document_id: String,
+    pub client_count: usize,
+    pub last_used: String,
 }
 
 impl RoomManager {
@@ -26,7 +35,7 @@ impl RoomManager {
 
     pub async fn get_or_create_room(&self, document_id: &str) -> Arc<RoomHandle> {
         let mut guard = self.rooms.lock().await;
-        let now = Instant::now();
+        let now = Utc::now();
 
         if let Some(entry) = guard.get_mut(document_id) {
             entry.last_used = now;
@@ -48,13 +57,13 @@ impl RoomManager {
 
     pub async fn cleanup_idle_rooms(&self) {
         let mut guard = self.rooms.lock().await;
-        let now = Instant::now();
-        let idle = self.idle_timeout;
+        let now = Utc::now();
+        let idle = chrono::Duration::from_std(self.idle_timeout).unwrap();
 
         let to_remove: Vec<String> = guard
             .iter()
             .filter_map(|(k, v)| {
-                if now.duration_since(v.last_used) > idle {
+                if now - v.last_used > idle {
                     Some(k.clone())
                 } else {
                     None
@@ -70,6 +79,18 @@ impl RoomManager {
                 });
             }
         }
+    }
+
+    pub async fn list_rooms(&self) -> Vec<RoomInfo> {
+        let guard = self.rooms.lock().await;
+        guard
+            .iter()
+            .map(|(id, entry)| RoomInfo {
+                document_id: id.clone(),
+                client_count: entry.handle.room.client_count(),
+                last_used: entry.last_used.to_rfc3339(),
+            })
+            .collect()
     }
     pub async fn room_count(&self) -> usize {
         let guard = self.rooms.lock().await;
