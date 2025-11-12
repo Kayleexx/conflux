@@ -13,8 +13,9 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 use uuid::Uuid;
+use crate::errors::{ConfluxError, Result};
 
 
 #[derive(Clone)]
@@ -42,10 +43,14 @@ async fn ws_handler(
     Path(document_id): Path<String>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, document_id, state))
+    ws.on_upgrade(move |socket| async move {
+        if let Err(e) = handle_socket(socket, document_id, state).await {
+            error!("WebSocket session failed: {:?}", e);
+        }
+    })
 }
 
-async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppState) {
+async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppState) -> Result<()> {
     let client_id = Uuid::new_v4().to_string();
     info!("🟢 Client {} connecting to {}", client_id, document_id);
 
@@ -59,7 +64,8 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
             client_id: client_id.clone(),
             tx: tx.clone(),
         })
-        .await;
+        .await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
+
 
     loop {
         tokio::select! {
@@ -69,7 +75,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                         let _ = room_handle.command_tx.send(RoomCommand::ApplyUpdate {
                             client_id: client_id.clone(),
                             update: Bytes::from(bin),
-                        }).await;
+                        }).await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
                     },
                     Some(Ok(Message::Text(text))) => {
                         info!(" Client {} sent text: {}", client_id, text);
@@ -94,7 +100,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                                 let _ = room_handle.command_tx.send(RoomCommand::SetAwareness {
                                     client_id: client_id.clone(),
                                     state: data,
-                                }).await;
+                                }).await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
                             },
                             Ok(ClientMessage::SyncRequest) => {
                                 let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
@@ -102,7 +108,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                                     client_id: client_id.clone(),
                                     state_vector: vec![],
                                     reply_to: reply_tx,
-                                }).await;
+                                }).await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
 
                                 if let Ok(sync_data) = reply_rx.await {
                                     let response = serde_json::json!({
@@ -121,7 +127,7 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
                                 let _ = room_handle.command_tx.send(RoomCommand::Chat {
                                     client_id: client_id.clone(),
                                     message,
-                                }).await;
+                                }).await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
                             },
                             Err(e) => {
                                 warn!("Invalid JSON from {}: {:?}", client_id, e);
@@ -169,4 +175,5 @@ async fn handle_socket(mut socket: WebSocket, document_id: String, state: AppSta
         .await;
 
     info!("🔴 Client {} disconnected", client_id);
+    Ok(())
 }

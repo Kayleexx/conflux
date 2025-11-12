@@ -1,42 +1,40 @@
-use thiserror::Error;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use thiserror::Error;
+use tracing::error;
 
-#[derive(Debug, Error)]
+#[derive(Error, Debug)]
 pub enum ConfluxError {
-    #[error("Invalid client message: {0}")]
-    InvalidMessage(String),
+    #[error("Room not found: {0}")]
+    RoomNotFound(String),
 
-    #[error("WebSocket send error: {0}")]
-    WebSocketSend(String),
+    #[error("Failed to send message to room: {0}")]
+    RoomSendError(String),
 
-    #[error("Failed to decode CRDT update: {0}")]
-    DecodeError(String),
+    #[error("WebSocket message error: {0}")]
+    WebSocketError(String),
 
-    #[error("Internal server error: {0}")]
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("Unexpected internal error: {0}")]
     Internal(String),
 }
 
 impl IntoResponse for ConfluxError {
     fn into_response(self) -> Response {
-        let status = match self {
-            ConfluxError::InvalidMessage(_) => StatusCode::BAD_REQUEST,
-            ConfluxError::WebSocketSend(_) => StatusCode::BAD_GATEWAY,
-            ConfluxError::DecodeError(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            ConfluxError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        error!("{:?}", self); 
+
+        let (status, message) = match &self {
+            ConfluxError::RoomNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
+            ConfluxError::RoomSendError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            ConfluxError::WebSocketError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            ConfluxError::SerializationError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            ConfluxError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
         };
 
-        let body = axum::Json(serde_json::json!({
-            "error": self.to_string()
-        }));
-
-        (status, body).into_response()
+        (status, message).into_response()
     }
 }
 
-#[macro_export]
-macro_rules! err {
-    ($variant:ident, $msg:expr) => {
-        $crate::errors::ConfluxError::$variant($msg.to_string())
-    };
-}
+pub type Result<T> = std::result::Result<T, ConfluxError>;
