@@ -1,6 +1,6 @@
 # Conflux
 
-Conflux is a modular, actor-based real-time collaboration backend written in Rust.  
+Conflux is a modular, actor-based real-time collaboration engine written in Rust.  
 It provides room-based CRDT synchronization, presence/awareness broadcasting, and text chat — all over WebSockets with JWT authentication.
 
 It’s designed as the backend core for collaborative editors, shared boards, or multiplayer apps where multiple users edit or interact in real time.
