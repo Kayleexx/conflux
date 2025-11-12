@@ -38,7 +38,7 @@ It provides room-based CRDT synchronization, presence awareness, chat messaging,
         │   ├─ server.rs       → routing       │
         │   ├─ errors.rs       → unified errs  │
         │   ├─ crdt.rs         → Yrs backend   │
-        │   └─ types.rs        → shared types  │
+        │
         └──────────────────────────────────────┘
 ```
 
@@ -56,7 +56,6 @@ conflux-workspace/
 │   │   ├── room.rs
 │   │   ├── room_manager.rs
 │   │   ├── server.rs
-│   │   ├── types.rs
 │   │   └── lib.rs
 │   └── Cargo.toml
 │
