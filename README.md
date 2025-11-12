@@ -1,45 +1,44 @@
 # Conflux
 
-Conflux is a modular, actor-based real-time collaboration backend written in Rust.
-It provides room-based CRDT synchronization, presence awareness, chat messaging, and JWT-authenticated WebSocket sessions.
+Conflux is a modular, actor-based real-time collaboration backend written in Rust.  
+It provides room-based CRDT synchronization, presence/awareness broadcasting, and text chat — all over WebSockets with JWT authentication.
 
+It’s designed as the backend core for collaborative editors, shared boards, or multiplayer apps where multiple users edit or interact in real time.
 
 ---
 
 ## Features
 
-* Room-based collaboration with automatic lifecycle management
-* JWT authentication with per-session tracking
-* Real-time CRDT synchronization using [Yrs (Yjs for Rust)](https://github.com/y-crdt/yrs)
-* Awareness and presence state broadcasting (cursor, user state, etc.)
-* Text chat messaging between clients
-* Background cleanup for idle rooms
-* Dashboard API to view room statistics
-* Modular architecture with clear separation of components
+- Room-based collaboration with automatic lifecycle management
+- Real-time document synchronization using [Yrs (Yjs for Rust)](https://github.com/y-crdt/yrs)
+- Awareness broadcasting (cursor, selection, etc.)
+- Chat messages and text communication between clients
+- JWT authentication and per-session tracking
+- Dashboard API to list active rooms and their metrics
+- Automatic cleanup for idle rooms
+- Modular architecture split into `room`, `room_manager`, `auth`, and `server`
 
 ---
 
-## Architecture
+## Architecture Overview
 
 ```
-        ┌──────────────────────────────────────┐
-        │              Client A                │
-        │  WebSocket ↔ CRDT / Chat / Awareness │
-        └──────────────────────────────────────┘
-                    ▲
-                    │ ws://127.0.0.1:8080/ws/:document_id?token=<JWT>
-                    ▼
-        ┌──────────────────────────────────────┐
-        │               Conflux                │
-        │   Axum WebSocket Server + RoomMgr    │
-        │   ├─ auth.rs         → JWT sessions  │
-        │   ├─ room_manager.rs → cleanup logic │
-        │   ├─ room.rs         → actor logic   │
-        │   ├─ server.rs       → routing       │
-        │   ├─ errors.rs       → unified errs  │
-        │   ├─ crdt.rs         → Yrs backend   │
-        │
-        └──────────────────────────────────────┘
+    ┌────────────────────────────────────────┐
+    │               Client A                 │
+    │ WebSocket → send text / CRDT / cursor  │
+    └────────────────────────────────────────┘
+                 ▲
+                 │ ws://127.0.0.1:8080/ws/:room?token=<JWT>
+                 ▼
+    ┌────────────────────────────────────────┐
+    │               Conflux                  │
+    │ Axum server + Room Manager + CRDT Core │
+    │ ├── auth.rs        → JWT validation    │
+    │ ├── room.rs        → per-room actor    │
+    │ ├── room_manager.rs → cleanup, metrics │
+    │ ├── server.rs      → WebSocket routing │
+    │ └── crdt.rs        → Yrs document API  │
+    └────────────────────────────────────────┘
 ```
 
 ---
@@ -47,6 +46,7 @@ It provides room-based CRDT synchronization, presence awareness, chat messaging,
 ## Project Structure
 
 ```
+
 conflux-workspace/
 ├── conflux/             # Core backend library
 │   ├── src/
@@ -66,9 +66,9 @@ conflux-workspace/
 ├── frontend/            # Optional Y.js client (future)
 │   └── index.html
 │
-└── scripts/             # Utility and test scripts
-    └── test_conflux.sh
-```
+└── README.md
+
+````
 
 ---
 
@@ -76,13 +76,12 @@ conflux-workspace/
 
 ### `POST /login`
 
-Authenticate a user and receive a JWT token.
+Authenticate and receive a JWT token.
 
 **Request**
-
 ```json
 { "username": "kaylee" }
-```
+````
 
 **Response**
 
@@ -90,13 +89,13 @@ Authenticate a user and receive a JWT token.
 { "token": "<JWT_TOKEN>" }
 ```
 
-Each login issues a new token with a unique session ID (`sid`).
+Each login creates a new session with a unique session ID (`sid`).
 
 ---
 
 ### `GET /dashboard`
 
-Returns information about all active rooms and their current state.
+Returns all active rooms and their current state.
 
 **Response**
 
@@ -115,26 +114,61 @@ Returns information about all active rooms and their current state.
 
 ### `GET /ws/:document_id?token=<JWT>`
 
-Connect to a collaborative room using a valid JWT token.
+Connect to a collaborative room via WebSocket.
 
-**Example**
+**Example:**
 
 ```bash
 websocat "ws://127.0.0.1:8080/ws/testroom?token=<JWT>"
 ```
 
-**Send messages**
+---
+
+## Sending Messages (Client → Server)
+
+You can send three kinds of messages to the server:
+
+### 1. Text / Chat
 
 ```json
-{"type": "chat", "message": "Hello"}
-{"type": "awareness", "data": {"cursor": 42}}
+{ "type": "chat", "message": "Hello everyone" }
 ```
 
-**Receive**
+→ Broadcasts to all clients in the same room:
 
 ```json
-{"Chat": {"document_id": "testroom", "from": "kaylee", "message": "Hello"}}
+{ "Chat": { "document_id": "testroom", "from": "kaylee", "message": "Hello everyone" } }
 ```
+
+---
+
+### 2. Awareness (Presence)
+
+```json
+{ "type": "awareness", "data": { "cursor": 42 } }
+```
+
+→ Notifies all connected clients about your cursor or user state.
+
+---
+
+### 3. CRDT Updates
+
+```json
+{ "type": "update", "data": "<base64_encoded_update>" }
+```
+
+→ The CRDT engine merges the update into the shared document using Yrs.
+
+---
+
+### 4. Sync Request
+
+```json
+{ "type": "sync_request" }
+```
+
+→ Requests the latest document state from the server if the client missed updates.
 
 ---
 
@@ -144,7 +178,7 @@ websocat "ws://127.0.0.1:8080/ws/testroom?token=<JWT>"
 cargo run -p confluxd
 ```
 
-Expected output:
+Output:
 
 ```
 INFO confluxd: Conflux server running at ws://127.0.0.1:8080
@@ -152,16 +186,51 @@ INFO confluxd: Conflux server running at ws://127.0.0.1:8080
 
 ---
 
+## Example Session
+
+1. Start the server
+
+   ```bash
+   cargo run -p confluxd
+   ```
+
+2. Get a JWT
+
+   ```bash
+   curl -X POST http://127.0.0.1:8080/login \
+     -H "Content-Type: application/json" \
+     -d '{"username":"kaylee"}'
+   ```
+
+3. Connect with the token
+
+   ```bash
+   websocat "ws://127.0.0.1:8080/ws/testroom?token=<JWT>"
+   ```
+
+4. Send messages from the client:
+
+   ```
+   {"type": "chat", "message": "hi from client 1"}
+   {"type": "awareness", "data": {"cursor": 101}}
+   {"type": "sync_request"}
+   ```
+
+---
+
 ## Security
 
-* JWTs expire after 24 hours
-* Each login generates a unique session ID (sid)
-* Tokens can be revoked by rotating the SECRET_KEY
-* Tokens are stateless (no database dependency)
+* JWT tokens expire after 24 hours
+* Each login generates a unique session ID (`sid`)
+* Tokens can be revoked by rotating the `SECRET_KEY`
+* All state is ephemeral (no DB dependency)
 
 ---
 
 ## License
 
 MIT License
-Copyright (c) 2025
+Copyright (c) 2025 Kaylee
+
+
+
