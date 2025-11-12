@@ -232,5 +232,8 @@ INFO confluxd: Conflux server running at ws://127.0.0.1:8080
 MIT License
 Copyright (c) 2025 Kaylee
 
+## Demo
+
+<img width="1919" height="864" alt="image" src="https://github.com/user-attachments/assets/77d83bb1-d392-48c7-adca-49943b120382" />
 
 
