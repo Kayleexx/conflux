@@ -2,6 +2,14 @@
 name = "conflux"
 version = "0.1.0"
 edition = "2024"
+authors = ["Mitali mitalisinha774@gmail.com"]
+license = "MIT"
+description = "A modular, actor-based real-time collaboration backend using CRDTs and WebSockets"
+repository = "https://github.com/Kayleexx/conflux"
+readme = "../README.md"
+keywords = ["crdt", "websocket", "realtime", "collaboration", "rust"]
+categories = ["network-programming", "concurrency", "web-programming"]
+exclude = ["/target", "/scripts"]     
 
 [dependencies]
 axum = { version = "0.7", features = ["ws", "tokio"] }
