@@ -1,10 +1,8 @@
-
 # Conflux
 
 Conflux is a modular, actor-based real-time collaboration backend written in Rust.
 It provides room-based CRDT synchronization, presence awareness, chat messaging, and JWT-authenticated WebSocket sessions.
 
-This project serves as the backend foundation for collaborative applications such as shared editors or whiteboards.
 
 ---
 
@@ -156,6 +154,11 @@ INFO confluxd: Conflux server running at ws://127.0.0.1:8080
 ---
 
 ## Security
+
+* JWTs expire after 24 hours
+* Each login generates a unique session ID (sid)
+* Tokens can be revoked by rotating the SECRET_KEY
+* Tokens are stateless (no database dependency)
 
 ---
 
