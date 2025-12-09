@@ -2,8 +2,8 @@ use bytes::Bytes;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, OnceLock,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -11,7 +11,7 @@ use std::{
 use tokio::{
     runtime::Builder,
     sync::{mpsc, oneshot},
-    task::{spawn_local, JoinHandle},
+    task::{JoinHandle, spawn_local},
     time::interval,
 };
 use yrs::{sync::Awareness, updates::encoder::Encode};
@@ -283,129 +283,127 @@ async fn broadcast_to_clients(
             }
         }
     }
-    
+
     for cid in failed {
         clients.remove(&cid);
         room_meta
             .client_count
             .store(clients.len(), Ordering::Relaxed);
     }
-
 }
- async fn handle_command(command: RoomCommand, ctx: &mut RoomContext<'_>) {
-        match command {
-            RoomCommand::Join { client_id, tx } => {
-                println!("[Room {}] Client {} joined", ctx.document_id, client_id);
-                let awareness_id = *ctx.next_awareness_id;
-                *ctx.next_awareness_id += 1;
-                ctx.awareness_ids.insert(client_id.clone(), awareness_id);
-                ctx.clients.insert(client_id, tx);
-                ctx.room_meta
-                    .client_count
-                    .store(ctx.clients.len(), Ordering::Relaxed);
-            }
+async fn handle_command(command: RoomCommand, ctx: &mut RoomContext<'_>) {
+    match command {
+        RoomCommand::Join { client_id, tx } => {
+            println!("[Room {}] Client {} joined", ctx.document_id, client_id);
+            let awareness_id = *ctx.next_awareness_id;
+            *ctx.next_awareness_id += 1;
+            ctx.awareness_ids.insert(client_id.clone(), awareness_id);
+            ctx.clients.insert(client_id, tx);
+            ctx.room_meta
+                .client_count
+                .store(ctx.clients.len(), Ordering::Relaxed);
+        }
 
-            RoomCommand::Leave { client_id } => {
-                println!("[Room {}] Client {} left", ctx.document_id, client_id);
+        RoomCommand::Leave { client_id } => {
+            println!("[Room {}] Client {} left", ctx.document_id, client_id);
 
-                if let Some(awareness_id) = ctx.awareness_ids.remove(&client_id) {
-                    let _ = ctx.awareness.remove_state(awareness_id);
+            if let Some(awareness_id) = ctx.awareness_ids.remove(&client_id) {
+                ctx.awareness.remove_state(awareness_id);
 
-                    if let Ok(update) = ctx.awareness.update() {
-                        let update_bytes = Bytes::from(update.encode_v1());
-                        broadcast_to_clients(
-                            ctx.clients,
-                            &client_id,
-                            OutboundMessage::Awareness {
-                                document_id: ctx.document_id.to_string(),
-                                update: update_bytes,
-                            },
-                            ctx.room_meta,
-                        )
-                        .await;
-                    }
-                }
-
-                ctx.clients.remove(&client_id);
-                ctx.room_meta
-                    .client_count
-                    .store(ctx.clients.len(), Ordering::Relaxed);
-            }
-
-            RoomCommand::ApplyUpdate { client_id, update } => {
-                ctx.room_meta
-                    .updates_received
-                    .fetch_add(1, Ordering::Relaxed);
-                ctx.crdt.apply_update(&update);
-
-                broadcast_to_clients(
-                    ctx.clients,
-                    &client_id,
-                    OutboundMessage::Update {
-                        document_id: ctx.document_id.to_string(),
-                        update,
-                    },
-                    ctx.room_meta,
-                )
-                .await;
-            }
-
-            RoomCommand::RequestSync {
-                client_id,
-                state_vector,
-                reply_to,
-            } => {
-                println!("[Room {}] Sync request from {}", ctx.document_id, client_id);
-                let diff = ctx.crdt.encode_diff(&state_vector);
-                let _ = reply_to.send(Bytes::from(diff));
-            }
-
-            RoomCommand::SetAwareness { client_id, state } => {
-                ctx.room_meta
-                    .awareness_events
-                    .fetch_add(1, Ordering::Relaxed);
-
-                if let Some(&_id) = ctx.awareness_ids.get(&client_id) {
-                    let _ = ctx.awareness.set_local_state(state.clone());
-                    if let Ok(update) = ctx.awareness.update() {
-                        let update_bytes = Bytes::from(update.encode_v1());
-                        broadcast_to_clients(
-                            ctx.clients,
-                            &client_id,
-                            OutboundMessage::Awareness {
-                                document_id: ctx.document_id.to_string(),
-                                update: update_bytes,
-                            },
-                            ctx.room_meta,
-                        )
-                        .await;
-                    }
+                if let Ok(update) = ctx.awareness.update() {
+                    let update_bytes = Bytes::from(update.encode_v1());
+                    broadcast_to_clients(
+                        ctx.clients,
+                        &client_id,
+                        OutboundMessage::Awareness {
+                            document_id: ctx.document_id.to_string(),
+                            update: update_bytes,
+                        },
+                        ctx.room_meta,
+                    )
+                    .await;
                 }
             }
 
-            RoomCommand::Chat { client_id, message } => {
-                println!(
-                    "[Room {}] Chat from {}: {}",
-                    ctx.document_id, client_id, message
-                );
+            ctx.clients.remove(&client_id);
+            ctx.room_meta
+                .client_count
+                .store(ctx.clients.len(), Ordering::Relaxed);
+        }
 
-                let from_id = client_id.clone();
-                broadcast_to_clients(
-                    ctx.clients,
-                    &client_id,
-                    OutboundMessage::Chat {
-                        document_id: ctx.document_id.to_string(),
-                        from: from_id,
-                        message,
-                    },
-                    ctx.room_meta,
-                )
-                .await;
-            }
+        RoomCommand::ApplyUpdate { client_id, update } => {
+            ctx.room_meta
+                .updates_received
+                .fetch_add(1, Ordering::Relaxed);
+            ctx.crdt.apply_update(&update);
 
-            RoomCommand::Shutdown => {
-                println!("[Room {}] Explicit shutdown command", ctx.document_id);
+            broadcast_to_clients(
+                ctx.clients,
+                &client_id,
+                OutboundMessage::Update {
+                    document_id: ctx.document_id.to_string(),
+                    update,
+                },
+                ctx.room_meta,
+            )
+            .await;
+        }
+
+        RoomCommand::RequestSync {
+            client_id,
+            state_vector,
+            reply_to,
+        } => {
+            println!("[Room {}] Sync request from {}", ctx.document_id, client_id);
+            let diff = ctx.crdt.encode_diff(&state_vector);
+            let _ = reply_to.send(Bytes::from(diff));
+        }
+
+        RoomCommand::SetAwareness { client_id, state } => {
+            ctx.room_meta
+                .awareness_events
+                .fetch_add(1, Ordering::Relaxed);
+
+            if let Some(&_id) = ctx.awareness_ids.get(&client_id) {
+                let _ = ctx.awareness.set_local_state(state.clone());
+                if let Ok(update) = ctx.awareness.update() {
+                    let update_bytes = Bytes::from(update.encode_v1());
+                    broadcast_to_clients(
+                        ctx.clients,
+                        &client_id,
+                        OutboundMessage::Awareness {
+                            document_id: ctx.document_id.to_string(),
+                            update: update_bytes,
+                        },
+                        ctx.room_meta,
+                    )
+                    .await;
+                }
             }
         }
-    }
 
+        RoomCommand::Chat { client_id, message } => {
+            println!(
+                "[Room {}] Chat from {}: {}",
+                ctx.document_id, client_id, message
+            );
+
+            let from_id = client_id.clone();
+            broadcast_to_clients(
+                ctx.clients,
+                &client_id,
+                OutboundMessage::Chat {
+                    document_id: ctx.document_id.to_string(),
+                    from: from_id,
+                    message,
+                },
+                ctx.room_meta,
+            )
+            .await;
+        }
+
+        RoomCommand::Shutdown => {
+            println!("[Room {}] Explicit shutdown command", ctx.document_id);
+        }
+    }
+}

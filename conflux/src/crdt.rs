@@ -1,12 +1,18 @@
 use std::sync::{Arc, RwLock};
 use yrs::{
-    Doc, StateVector, Transact, Update, ReadTxn,
+    Doc, ReadTxn, StateVector, Transact, Update,
     updates::{decoder::Decode, encoder::Encode},
 };
 
 #[derive(Clone)]
 pub struct CrdtEngine {
     doc: Arc<RwLock<Doc>>,
+}
+
+impl Default for CrdtEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CrdtEngine {
@@ -50,4 +56,3 @@ impl CrdtEngine {
         }
     }
 }
-

@@ -1,12 +1,8 @@
-use crate::room::{spawn_room, RoomHandle};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
-};
-use tokio::sync::Mutex;
+use crate::room::{RoomHandle, spawn_room};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 
 struct Entry {
     handle: Arc<RoomHandle>,

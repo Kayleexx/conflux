@@ -1,6 +1,6 @@
 # Conflux
 
-Conflux is a modular, actor-based real-time collaboration engine written in Rust.  
+Conflux is a modular, actor-based real-time collaboration engine written in Rust.
 It provides room-based CRDT synchronization, presence/awareness broadcasting, and text chat — all over WebSockets with JWT authentication.
 
 It’s designed as the backend core for collaborative editors, shared boards, or multiplayer apps where multiple users edit or interact in real time.
@@ -14,6 +14,8 @@ It’s designed as the backend core for collaborative editors, shared boards, or
 - Awareness broadcasting (cursor, selection, etc.)
 - Chat messages and text communication between clients
 - JWT authentication and per-session tracking
+- Anonymous authentication mode for development and demos
+- Configurable via CLI arguments and environment variables
 - Dashboard API to list active rooms and their metrics
 - Automatic cleanup for idle rooms
 - Modular architecture split into `room`, `room_manager`, `auth`, and `server`
@@ -68,7 +70,7 @@ conflux-workspace/
 │
 └── README.md
 
-````
+```
 
 ---
 
@@ -79,9 +81,10 @@ conflux-workspace/
 Authenticate and receive a JWT token.
 
 **Request**
+
 ```json
 { "username": "kaylee" }
-````
+```
 
 **Response**
 
@@ -137,7 +140,13 @@ You can send three kinds of messages to the server:
 → Broadcasts to all clients in the same room:
 
 ```json
-{ "Chat": { "document_id": "testroom", "from": "kaylee", "message": "Hello everyone" } }
+{
+  "Chat": {
+    "document_id": "testroom",
+    "from": "kaylee",
+    "message": "Hello everyone"
+  }
+}
 ```
 
 ---
@@ -174,8 +183,39 @@ You can send three kinds of messages to the server:
 
 ## Running the Server
 
+### Basic Usage
+
 ```bash
 cargo run -p confluxd
+```
+
+### CLI Options
+
+```
+Usage: confluxd [OPTIONS]
+
+Options:
+  -p, --port <PORT>                  Port to listen on [default: 8080]
+      --host <HOST>                  Host address to bind to [default: 127.0.0.1]
+      --anonymous                    Enable anonymous authentication (no signature verification)
+      --idle-timeout <IDLE_TIMEOUT>  Room idle timeout in seconds [default: 60]
+  -h, --help                         Print help
+```
+
+### Examples
+
+```bash
+# Default (localhost:8080)
+cargo run -p confluxd
+
+# Custom port and host
+cargo run -p confluxd -- --port 3000 --host 0.0.0.0
+
+# Anonymous mode (clients can generate their own JWTs)
+cargo run -p confluxd -- --anonymous
+
+# Production with custom settings
+CONFLUX_JWT_SECRET=your-secret-here cargo run -p confluxd --release -- --port 8080 --host 0.0.0.0
 ```
 
 Output:
@@ -218,12 +258,26 @@ INFO confluxd: Conflux server running at ws://127.0.0.1:8080
 
 ---
 
+## Configuration
+
+### Environment Variables
+
+| Variable             | Required         | Description                                                            |
+| -------------------- | ---------------- | ---------------------------------------------------------------------- |
+| `CONFLUX_JWT_SECRET` | Yes (production) | Secret key for signing/verifying JWTs. **Required in release builds.** |
+
+In debug builds, a default development secret is used if `CONFLUX_JWT_SECRET` is not set (with a warning).
+
+---
+
 ## Security
 
-* JWT tokens expire after 24 hours
-* Each login generates a unique session ID (`sid`)
-* Tokens can be revoked by rotating the `SECRET_KEY`
-* All state is ephemeral (no DB dependency)
+- JWT tokens expire after 24 hours
+- Each login generates a unique session ID (`sid`)
+- Tokens can be revoked by rotating the `CONFLUX_JWT_SECRET`
+- Release builds panic on startup if `CONFLUX_JWT_SECRET` is not set
+- Anonymous mode (`--anonymous`) skips signature verification - use only for development/demos
+- All state is ephemeral (no DB dependency)
 
 ---
 
@@ -235,5 +289,3 @@ Copyright (c) 2025 Kaylee
 ## Demo
 
 <img width="1919" height="864" alt="image" src="https://github.com/user-attachments/assets/77d83bb1-d392-48c7-adca-49943b120382" />
-
-

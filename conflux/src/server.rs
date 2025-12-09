@@ -1,30 +1,31 @@
 use crate::{
-    room::{OutboundMessage, RoomCommand, RoomHandle},
-    room_manager::{RoomManager, RoomInfo},
-    auth::{generate_token, validate_token, Claims},
+    auth::{Claims, generate_token, validate_token, validate_token_anonymous},
     errors::{ConfluxError, Result},
+    room::{OutboundMessage, RoomCommand},
+    room_manager::{RoomInfo, RoomManager},
 };
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Path, Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
 use uuid::Uuid;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
 
 #[derive(Clone)]
 pub struct AppState {
     pub room_manager: Arc<RoomManager>,
+    pub anonymous_mode: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -40,7 +41,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/login", post(login_handler))
         .route("/dashboard", get(dashboard_handler))
-        .route("/ws/:document_id", get(ws_route))
+        .route("/ws/{document_id}", get(ws_route))
         .with_state(state)
 }
 
@@ -84,12 +85,19 @@ async fn handle_ws(
         .ok_or_else(|| ConfluxError::AuthError("Missing token".into()))?
         .clone();
 
-    let claims: Claims = validate_token(&token)?;
+    let claims: Claims = if state.anonymous_mode {
+        validate_token_anonymous(&token)?
+    } else {
+        validate_token(&token)?
+    };
     let user_id = claims.sub;
     let session_id = claims.sid;
     let client_id = Uuid::new_v4().to_string();
 
-    info!("🟢 {} (session {}) connected to {}", user_id, session_id, document_id);
+    info!(
+        "🟢 {} (session {}) connected to {}",
+        user_id, session_id, document_id
+    );
 
     let room_handle = state.room_manager.get_or_create_room(&document_id).await;
     let (tx, mut rx) = mpsc::channel::<OutboundMessage>(32);
@@ -112,7 +120,7 @@ async fn handle_ws(
                             info!("[Room {}] Binary update from {}", document_id, client_id);
                             let _ = room_handle.command_tx.send(RoomCommand::ApplyUpdate {
                                 client_id: client_id.clone(),
-                                update: Bytes::from(bin),
+                                update: bin,
                             }).await;
                         }
 
@@ -168,7 +176,7 @@ async fn handle_ws(
                                                 "data": STANDARD.encode(sync_data),
                                             });
                                             if let Ok(json_str) = serde_json::to_string(&response) {
-                                                let _ = socket.send(Message::Text(json_str)).await;
+                                                let _ = socket.send(Message::Text(json_str.into())).await;
                                             }
                                         }
                                     }
@@ -179,7 +187,7 @@ async fn handle_ws(
                                 }
                             } else {
                                 info!("[Room {}] Chat (plain) from {}: {}", document_id, client_id, text);
-                                let _ = room_handle.command_tx.send(RoomCommand::Chat {
+                                room_handle.command_tx.send(RoomCommand::Chat {
                                     client_id: client_id.clone(),
                                     message: text.to_string(),
                                 }).await.map_err(|e| ConfluxError::RoomSendError(e.to_string()))?;
@@ -202,10 +210,10 @@ async fn handle_ws(
             outgoing = rx.recv() => {
                 match outgoing {
                     Some(out_msg) => {
-                        if let Ok(json) = serde_json::to_string(&out_msg) {
-                            if socket.send(Message::Text(json)).await.is_err() {
-                                break;
-                            }
+                        if let Ok(json) = serde_json::to_string(&out_msg)
+                            && socket.send(Message::Text(json.into())).await.is_err()
+                        {
+                            break;
                         }
                     }
                     None => break,
@@ -219,6 +227,9 @@ async fn handle_ws(
         .send(RoomCommand::Leave { client_id })
         .await;
 
-    info!("🔴 {} (session {}) disconnected from {}", user_id, session_id, document_id);
+    info!(
+        "🔴 {} (session {}) disconnected from {}",
+        user_id, session_id, document_id
+    );
     Ok(())
 }
