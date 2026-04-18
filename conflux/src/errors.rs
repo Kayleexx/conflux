@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 use thiserror::Error;
@@ -30,15 +30,20 @@ pub enum ConfluxError {
 
 impl IntoResponse for ConfluxError {
     fn into_response(self) -> Response {
-        error!("{:?}", self); 
+        error!("{:?}", self);
 
         let (status, msg) = match &self {
             ConfluxError::RoomNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             ConfluxError::RoomSendError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             ConfluxError::WebSocketError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            ConfluxError::SerializationError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            ConfluxError::SerializationError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            }
             ConfluxError::AuthError(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
-            ConfluxError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
+            ConfluxError::Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            ),
         };
         let body = Json(json!({
             "error": msg,

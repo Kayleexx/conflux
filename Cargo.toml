@@ -1,2 +1,40 @@
 [workspace]
+resolver = "3"
 members = ["conflux", "confluxd"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Mitali mitalisinha774@gmail.com"]
+license = "MIT"
+description = "A modular, actor-based real-time collaboration backend using CRDTs and WebSockets"
+repository = "https://github.com/Kayleexx/conflux"
+homepage = "https://github.com/Kayleexx/conflux"
+readme = "../README.md"
+keywords = ["crdt", "websocket", "realtime", "collaboration", "rust"]
+categories = ["network-programming", "concurrency", "web-programming"]
+
+[workspace.dependencies]
+anyhow = "1"
+axum = { version = "0.8", features = ["ws", "tokio"] }
+base64 = "0.22.1"
+base64-bytes = "0.1.0"
+bytes = { version = "1", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+chrono = {version = "0.4.42", features = ["serde"]}
+dashmap = "6.1.0"
+futures-util = "0.3.31"
+jsonwebtoken = { version = "10", features = [ "aws_lc_rs" ] }
+serde = {version = "1.0.228", features = ["derive"]}
+serde_json = "1.0.145"
+thiserror = "2.0.17"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1.17"
+tower-http = { version = "0.6", features = ["fs"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3"
+yrs = "0.24.0"
+uuid = { version = "1", features = ["v4"] }
+
+[workspace.dependencies.conflux]
+path = "conflux"

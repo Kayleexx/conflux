@@ -1,23 +1,27 @@
 [package]
 name = "confluxd"
-version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-axum = { version = "0.7", features = ["ws", "tokio"] }
-base64-bytes = "0.1.0"
-dashmap = "6.1.0"
-serde = "1.0.228"
-serde_json = "1.0.145"
-thiserror = "2.0.17"
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1.41"
-yrs = "0.24.0"
-bytes = { version = "1", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
-tracing-subscriber = "0.3"
-tokio-stream = "0.1.17"
-futures-util = "0.3.31"
-conflux = { version = "0.1.0", path = "../conflux" }
-tower-http = { version = "0.5", features = ["fs"] }
-anyhow = "1.0.100"
+anyhow.workspace = true
+axum.workspace = true
+base64-bytes.workspace = true
+bytes.workspace = true
+clap.workspace = true
+conflux.workspace = true
+dashmap.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+yrs.workspace = true
+uuid.workspace = true
